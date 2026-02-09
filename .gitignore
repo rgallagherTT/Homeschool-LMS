@@ -1,0 +1,23 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# Environment variables
+.env
+
+# macOS
+.DS_Store
+
+# Test coverage
+coverage
+
+# Logs
+*.log
+
+# Turbo
+.turbo
+
+# Next.js
+.next
