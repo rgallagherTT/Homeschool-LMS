@@ -1,1855 +1,941 @@
-# Product Requirements Document: Zoho CRM Plus Clone
+# Homeschool Hub Clone — Product Requirements Document
 
-## Document Control
-
-- **Version:** 1.0
-- **Date:** February 8, 2026
-- **Product Owner:** [Your Name]
-- **Target Audience:** Development Team, Claude Code
-- **Status:** Draft for Development
+**Project Name:** EduNest — Homeschool Learning Management System
+**Version:** 1.0
+**Date:** February 8, 2026
+**Author:** Product Owner
+**Audience:** Claude Code (AI Engineering Agent)
 
 -----
 
-## Table of Contents
+## 1. Executive Summary
 
-1. [Executive Summary](#executive-summary)
-1. [Product Vision & Goals](#product-vision--goals)
-1. [System Architecture](#system-architecture)
-1. [Core Modules & Features](#core-modules--features)
-1. [Technical Requirements](#technical-requirements)
-1. [Data Model](#data-model)
-1. [User Roles & Permissions](#user-roles--permissions)
-1. [Integration Requirements](#integration-requirements)
-1. [UI/UX Requirements](#uiux-requirements)
-1. [Development Phases](#development-phases)
-1. [Success Metrics](#success-metrics)
+EduNest is a full-stack homeschool Learning Management System (LMS) modeled after the BJU Press Homeschool Hub. It is an all-in-one platform that gives homeschool parents the tools to plan schedules, assign courses, track progress, grade assignments, and generate transcripts — while giving students a clean, focused interface to view daily lessons, watch videos, and complete their work.
+
+The platform serves two user roles: **Parent (Admin)** and **Student**. Parents have full control over scheduling, grading, and reporting. Students have a simplified, read-mostly view focused on completing daily work.
 
 -----
 
-## Executive Summary
+## 2. Goals & Success Criteria
 
-### Product Overview
-
-This document outlines requirements for building a unified customer experience platform similar to Zoho CRM Plus. The system will integrate sales automation (CRM), marketing tools, customer service (helpdesk), analytics, and team collaboration into a single, unified interface with shared customer data across all modules.
-
-### Key Differentiators
-
-- **Unified Platform**: Single interface for sales, marketing, service, and analytics
-- **360° Customer View**: Complete customer interaction history across all touchpoints
-- **Omnichannel Engagement**: Phone, email, live chat, social media, surveys in one place
-- **AI-Powered Insights**: Intelligent assistant for predictions, sentiment analysis, and recommendations
-- **Affordable**: Competitive pricing with transparent, no-hidden-costs model
-
-### Target Users
-
-- Small to Medium Businesses (SMBs) with 5-500 employees
-- Customer-facing teams: Sales, Marketing, Customer Service
-- Business owners and managers needing unified analytics
+|Goal                                                      |Success Metric                                             |
+|----------------------------------------------------------|-----------------------------------------------------------|
+|Parents can plan an entire school year in under 30 minutes|Onboarding flow completes in ≤10 steps                     |
+|Students see exactly what’s due today                     |Dashboard loads in <2s with today’s tasks                  |
+|Grading is fast and frictionless                          |Grade entry for a single assignment takes ≤3 clicks        |
+|Reports satisfy state requirements                        |Transcript PDF generates with GPA, credits, and course list|
+|Works on any device                                       |Fully responsive down to 375px width                       |
 
 -----
 
-## Product Vision & Goals
+## 3. Tech Stack (Recommended)
 
-### Vision Statement
-
-Create an all-in-one customer experience platform that eliminates the need for multiple disconnected tools, enabling businesses to deliver exceptional, personalized customer experiences through unified data and streamlined workflows.
-
-### Business Goals
-
-1. **Reduce Tool Sprawl**: Replace 5-10 separate tools with one integrated platform
-1. **Improve Team Collaboration**: Enable seamless data sharing across departments
-1. **Increase Customer Satisfaction**: Provide consistent, context-aware customer interactions
-1. **Drive Revenue Growth**: Better lead management, pipeline visibility, and upsell opportunities
-1. **Achieve Product-Market Fit**: Launch MVP within 6 months, acquire 100 paying customers in Year 1
-
-### Success Criteria
-
-- User retention rate > 85% after 90 days
-- Average customer saves 15+ hours/week vs. using multiple tools
-- Net Promoter Score (NPS) > 40
-- 30% reduction in customer response time
+|Layer               |Technology                                                   |Rationale                                                     |
+|--------------------|-------------------------------------------------------------|--------------------------------------------------------------|
+|**Frontend**        |Next.js 14+ (App Router) with TypeScript                     |SSR, file-based routing, React Server Components              |
+|**Styling**         |Tailwind CSS + shadcn/ui                                     |Rapid, consistent UI; accessible components                   |
+|**State Management**|Zustand or React Context                                     |Lightweight, sufficient for this domain                       |
+|**Backend / API**   |Next.js API Routes (or separate Express/Fastify if preferred)|Co-located with frontend for simplicity                       |
+|**Database**        |PostgreSQL via Prisma ORM                                    |Relational data (students, courses, grades) fits SQL perfectly|
+|**Authentication**  |NextAuth.js (Auth.js v5)                                     |Supports credentials, OAuth; role-based access                |
+|**File Storage**    |S3-compatible (AWS S3, Cloudflare R2, or MinIO for local dev)|Video lessons, PDFs, handouts                                 |
+|**Video Delivery**  |HLS via Mux, Cloudflare Stream, or self-hosted               |Adaptive bitrate streaming                                    |
+|**PDF Generation**  |`@react-pdf/renderer` or Puppeteer                           |Transcripts and report cards                                  |
+|**Deployment**      |Vercel / Railway / Docker Compose                            |Easy CI/CD                                                    |
 
 -----
 
-## System Architecture
+## 4. User Roles & Permissions
 
-### High-Level Architecture
+### 4.1 Parent (Admin)
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    CLIENT LAYER                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │Web Client│  │Mobile App│  │API Client│  │  Webhooks│   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   API GATEWAY                                │
-│  Authentication │ Rate Limiting │ Load Balancing             │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 APPLICATION LAYER                            │
-│  ┌──────┐ ┌────────┐ ┌──────┐ ┌─────────┐ ┌─────────┐     │
-│  │ CRM  │ │Marketing│ │ Desk │ │Analytics│ │ Projects│     │
-│  └──────┘ └────────┘ └──────┘ └─────────┘ └─────────┘     │
-│  ┌──────┐ ┌────────┐ ┌──────┐ ┌─────────┐                 │
-│  │Social│ │Campaign│ │Survey│ │SalesIQ  │                  │
-│  └──────┘ └────────┘ └──────┘ └─────────┘                 │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   SERVICE LAYER                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐      │
-│  │Auth      │ │Workflow  │ │AI/ML     │ │Email     │       │
-│  │Service   │ │Engine    │ │Service   │ │Service   │       │
-│  └──────────┘ └──────────┘ └──────────┘ └──────────┘      │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐                   │
-│  │Notification│ │File      │ │Search    │                   │
-│  │Service   │ │Storage   │ │Service   │                    │
-│  └──────────┘ └──────────┘ └──────────┘                   │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    DATA LAYER                                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
-│  │PostgreSQL   │  │Redis Cache  │  │Columnar DB  │         │
-│  │(Primary)    │  │             │  │(Analytics)  │         │
-│  └─────────────┘  └─────────────┘  └─────────────┘         │
-│  ┌─────────────┐  ┌─────────────┐                          │
-│  │Object Store │  │ElasticSearch│                           │
-│  │(S3/MinIO)   │  │(Search)     │                           │
-│  └─────────────┘  └─────────────┘                          │
-└─────────────────────────────────────────────────────────────┘
-```
+- Creates and manages family account
+- Adds/edits/removes students
+- Assigns courses to students
+- Configures course schedules (start date, days of week, lessons per day)
+- Views and edits calendar (reschedule, skip, add days off)
+- Grades assignments (manual point entry)
+- Views gradebook with averages
+- Generates transcripts, progress reports, and grade reports
+- Manages student account visibility settings (e.g., hide gradebook from student)
+- Creates custom (non-platform) courses
 
-### Technology Stack Recommendations
+### 4.2 Student
 
-#### Backend
-
-- **Primary Framework**: Node.js (Express/NestJS) OR Python (Django/FastAPI)
-- **Database**: PostgreSQL 15+ (relational data, ACID compliance)
-- **Analytics DB**: ClickHouse or TimescaleDB (columnar storage for analytics)
-- **Cache**: Redis 7+ (session management, real-time features)
-- **Search**: Elasticsearch 8+ (full-text search across modules)
-- **Queue**: RabbitMQ or Apache Kafka (async processing, webhooks)
-- **Object Storage**: MinIO or AWS S3 (file attachments, documents)
-
-#### Frontend
-
-- **Framework**: React 18+ with TypeScript
-- **State Management**: Redux Toolkit or Zustand
-- **UI Components**: Material-UI or Ant Design (for enterprise look)
-- **Data Visualization**: Chart.js, Recharts, or D3.js
-- **Real-time**: Socket.io or WebSockets for live updates
-- **Mobile**: React Native (for iOS/Android apps)
-
-#### Infrastructure
-
-- **Containerization**: Docker + Docker Compose
-- **Orchestration**: Kubernetes (for production scale)
-- **CI/CD**: GitHub Actions or GitLab CI
-- **Monitoring**: Prometheus + Grafana
-- **Logging**: ELK Stack (Elasticsearch, Logstash, Kibana)
-- **CDN**: CloudFlare or AWS CloudFront
-
-#### AI/ML
-
-- **Language**: Python
-- **Frameworks**: scikit-learn, TensorFlow/PyTorch
-- **NLP**: spaCy, Hugging Face Transformers
-- **Features**: Sentiment analysis, lead scoring, anomaly detection
+- Logs into personal account
+- Views daily dashboard with today’s tasks
+- Marks lessons/assignments as complete
+- Watches video lessons
+- Takes online quizzes/tests (auto-graded)
+- Views own grades (if parent allows)
+- Views course progress
 
 -----
 
-## Core Modules & Features
-
-### 1. CRM (Sales Force Automation)
-
-#### 1.1 Lead Management
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Lead capture from multiple sources (web forms, email, manual entry, API)
-- Lead assignment rules (round-robin, territory-based, custom rules)
-- Lead scoring with customizable criteria
-- Lead conversion to Contact/Account/Deal
-- Duplicate detection and merging
-- Bulk import/export (CSV, Excel)
-- Lead enrichment (auto-fill company data from external APIs)
-
-**User Stories**:
+## 5. Information Architecture & Navigation
 
 ```
-As a sales rep, I want to automatically receive leads from our website forms 
-so that I can follow up quickly without manual data entry.
+Parent View:
+├── Dashboard (day-at-a-glance for selected student)
+├── Calendar (day / week / month views)
+├── Courses (list of all assigned courses per student)
+│   └── Course Detail (assignment schedule, resources, PDFs)
+├── Assignments (grading queue with answer keys)
+├── Gradebook (grade averages, edit grades, grading scale config)
+├── Reports
+│   ├── Transcript
+│   ├── Progress Report
+│   └── Course Grade Report
+├── Students (manage student profiles)
+└── Settings (family profile, account, preferences)
 
-As a sales manager, I want to set up lead assignment rules based on geography 
-so that leads are automatically routed to the right regional rep.
-
-As a marketing manager, I want to score leads based on engagement and firmographics 
-so that sales focuses on the most qualified prospects.
+Student View:
+├── Dashboard (today's lessons & assignments)
+├── My Courses
+│   └── Course Detail (lessons, videos, assignments)
+├── My Grades (if enabled by parent)
+└── Settings (profile, password)
 ```
 
-**Acceptance Criteria**:
+-----
 
-- Lead created from web form appears in CRM within 5 seconds
-- Assignment rules execute within 10 seconds of lead creation
-- Lead scoring updates in real-time when criteria change
-- Duplicate detection identifies matches based on email + company name
-- Support 50+ custom fields per lead record
+## 6. Data Model (Prisma Schema Outline)
 
-#### 1.2 Contact & Account Management
+Below is the core schema. Claude Code should use this as the starting point for `schema.prisma`.
 
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Contact records with standard fields (name, email, phone, role, etc.)
-- Account records with hierarchy (parent-child relationships)
-- Contact-to-Account associations (one-to-many)
-- Activity timeline (emails, calls, meetings, notes)
-- Social media profile integration (LinkedIn, Twitter)
-- Custom fields and modules
-- Tags and categories
-- Advanced search and filtering
-- Contact segmentation
-
-**Data Model**:
-
-```
-Contact {
-  id: UUID
-  account_id: UUID (FK)
-  first_name: String
-  last_name: String
-  email: String (unique, indexed)
-  phone: String
-  mobile: String
-  role: String
-  department: String
-  social_profiles: JSON
-  custom_fields: JSON
-  created_at: Timestamp
-  updated_at: Timestamp
-  created_by: UUID (FK to User)
-  owner_id: UUID (FK to User)
+```prisma
+generator client {
+  provider = "prisma-client-js"
 }
 
-Account {
-  id: UUID
-  parent_account_id: UUID (FK, self-referential)
-  name: String (indexed)
-  website: String
-  industry: String
-  employee_count: Integer
-  annual_revenue: Decimal
-  billing_address: JSON
-  shipping_address: JSON
-  custom_fields: JSON
-  created_at: Timestamp
-  updated_at: Timestamp
-  owner_id: UUID (FK to User)
-}
-```
-
-#### 1.3 Deal/Opportunity Management
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Deal pipeline with customizable stages
-- Multiple pipelines for different sales processes
-- Drag-and-drop Kanban view
-- Deal value and probability tracking
-- Expected close date
-- Deal activities and history
-- Win/loss analysis
-- Deal forecasting
-- Product line items (CPQ - Configure, Price, Quote)
-- Approval workflows for discounts
-- Pipeline analytics and reports
-
-**Stages** (Default):
-
-1. Prospecting
-1. Qualification
-1. Needs Analysis
-1. Proposal
-1. Negotiation
-1. Closed Won / Closed Lost
-
-**User Stories**:
-
-```
-As a sales rep, I want to drag deals between pipeline stages 
-so that I can quickly update deal status without opening each record.
-
-As a sales manager, I want to see pipeline value by stage 
-so that I can forecast revenue accurately.
-
-As a sales rep, I want to add products to a deal with automatic pricing 
-so that I can generate quotes quickly.
-```
-
-#### 1.4 Activity Management
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Task creation and assignment
-- Event/meeting scheduling
-- Call logging with duration and outcome
-- Email integration (send/receive from CRM)
-- Activity timeline on all records
-- Activity reminders and notifications
-- Recurring activities
-- Activity reports
-
-#### 1.5 Sales Inbox
-
-**Priority**: P1 (Should Have)
-
-**Features**:
-
-- Email integration (Gmail, Outlook)
-- Emails organized by deal stage
-- Email templates
-- Email tracking (opens, clicks)
-- Email scheduling
-- Email classification (folders, labels)
-- Auto-association with contacts/deals
-
-#### 1.6 Workflow Automation
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Trigger-based workflows (on create, update, delete)
-- Actions: send email, update field, create task, webhook
-- Conditional logic (if-then-else)
-- Field updates
-- Email alerts
-- Custom functions (JavaScript/Python)
-- Scheduled workflows (time-based triggers)
-
-**Example Workflows**:
-
-- Auto-assign lead to sales rep based on territory
-- Send welcome email when deal is marked as “Closed Won”
-- Create follow-up task 3 days after demo meeting
-- Alert manager when deal value exceeds $50K
-- Update lead score when email is opened
-
-#### 1.7 Reporting & Dashboards
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Pre-built reports (pipeline, lead conversion, activity, forecast)
-- Custom report builder (drag-and-drop)
-- Report types: tabular, summary, matrix
-- Charts: bar, line, pie, funnel, scatter
-- Dashboard with multiple widgets
-- Real-time data updates
-- Scheduled report emails
-- Export to PDF, Excel, CSV
-
-**Default Reports**:
-
-- Lead Source Analysis
-- Lead Conversion Funnel
-- Sales Pipeline by Stage
-- Win/Loss Analysis
-- Sales Forecast
-- Activity Summary by Rep
-- Deal Velocity
-
------
-
-### 2. Marketing Automation
-
-#### 2.1 Email Campaigns
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Drag-and-drop email builder
-- Pre-designed templates
-- Personalization tokens (merge fields)
-- A/B testing (subject lines, content, send time)
-- Subscriber management and segmentation
-- List import/export
-- Unsubscribe management
-- Spam score checking
-- Campaign analytics (open rate, click rate, bounce rate)
-- Email scheduling
-- Autoresponders
-
-**User Stories**:
-
-```
-As a marketing manager, I want to create email campaigns using templates 
-so that I can launch campaigns quickly without design skills.
-
-As a marketer, I want to A/B test subject lines 
-so that I can improve open rates.
-
-As a marketer, I want to segment my email list based on CRM data 
-so that I can send targeted, relevant messages.
-```
-
-#### 2.2 Marketing Automation Workflows
-
-**Priority**: P1 (Should Have)
-
-**Features**:
-
-- Visual workflow builder (drag-and-drop)
-- Triggers: form submission, email click, page visit, tag added
-- Actions: send email, wait, add tag, update contact, webhook
-- Multi-channel: email, SMS, push notification
-- Lead nurturing sequences
-- Drip campaigns
-- Re-engagement campaigns
-- Lead scoring adjustments
-
-**Example Workflows**:
-
-- Welcome series for new subscribers (Day 1: Welcome, Day 3: Value prop, Day 7: Case study)
-- Abandoned cart recovery
-- Event registration follow-up
-- Post-purchase onboarding
-
-#### 2.3 Landing Pages & Forms
-
-**Priority**: P1 (Should Have)
-
-**Features**:
-
-- Landing page builder (drag-and-drop)
-- Form builder with custom fields
-- Progressive profiling
-- Form analytics (submissions, conversion rate)
-- A/B testing for landing pages
-- Thank you pages
-- Redirect rules
-- Form spam protection (CAPTCHA)
-- Embed forms on external websites
-
-#### 2.4 Social Media Management
-
-**Priority**: P2 (Nice to Have)
-
-**Features**:
-
-- Connect social accounts (Facebook, Twitter, LinkedIn, Instagram)
-- Schedule posts across platforms
-- Social listening (brand mentions, keywords)
-- Engagement tracking (likes, comments, shares)
-- Social inbox (respond to messages/comments)
-- Competitor analysis
-- Social analytics dashboard
-- Convert social interactions to leads
-
-**User Stories**:
-
-```
-As a social media manager, I want to schedule posts for multiple platforms 
-so that I can plan content in advance and maintain consistency.
-
-As a sales rep, I want to be notified when someone mentions our brand on Twitter 
-so that I can engage with potential leads quickly.
-```
-
-#### 2.5 Survey & Feedback
-
-**Priority**: P2 (Nice to Have)
-
-**Features**:
-
-- Survey builder with question types (multiple choice, rating, text, NPS)
-- Survey templates (customer satisfaction, product feedback, NPS)
-- Survey distribution (email, web link, embed)
-- Response collection and analytics
-- NPS calculation and tracking
-- Custom branding
-- Survey logic (skip logic, branching)
-- Anonymous responses option
-
------
-
-### 3. Customer Service (Helpdesk)
-
-#### 3.1 Ticket Management
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Ticket creation from email, web form, chat, phone
-- Ticket assignment (manual, round-robin, skill-based)
-- Ticket status workflow (New, In Progress, Waiting, Resolved, Closed)
-- Priority levels (Low, Medium, High, Urgent)
-- Ticket categories/types
-- SLA management (response time, resolution time)
-- Internal notes (visible to agents only)
-- Customer-facing comments
-- Ticket merging and splitting
-- Ticket escalation rules
-- Parent-child ticket relationships
-
-**Data Model**:
-
-```
-Ticket {
-  id: UUID
-  ticket_number: String (auto-generated, unique)
-  subject: String
-  description: Text
-  status: Enum (new, in_progress, waiting, resolved, closed)
-  priority: Enum (low, medium, high, urgent)
-  category: String
-  contact_id: UUID (FK)
-  account_id: UUID (FK)
-  assigned_to: UUID (FK to User)
-  created_at: Timestamp
-  updated_at: Timestamp
-  due_at: Timestamp (SLA)
-  resolved_at: Timestamp
-  closed_at: Timestamp
-  tags: Array<String>
-  custom_fields: JSON
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-TicketComment {
-  id: UUID
-  ticket_id: UUID (FK)
-  user_id: UUID (FK)
-  body: Text
-  is_internal: Boolean
-  created_at: Timestamp
-  attachments: Array<String> (file URLs)
-}
-```
+// ─── AUTH & USERS ──────────────────────────────────────────
 
-#### 3.2 Knowledge Base
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          Role      @default(PARENT)
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-**Priority**: P1 (Should Have)
-
-**Features**:
-
-- Article creation with rich text editor
-- Article categories and folders
-- Article versioning
-- Search functionality
-- Public vs. internal articles
-- SEO-friendly URLs
-- Article analytics (views, helpful votes)
-- Related articles suggestions
-- Multi-language support
-
-#### 3.3 Live Chat (SalesIQ)
-
-**Priority**: P1 (Should Have)
-
-**Features**:
-
-- Website chat widget (customizable)
-- Proactive chat triggers (time on page, exit intent)
-- Visitor tracking (location, page history)
-- Canned responses (quick replies)
-- Chat transfer and conferencing
-- Typing indicators
-- File sharing in chat
-- Chat transcripts saved to contact/ticket
-- Offline messages (form when agents unavailable)
-- Chat routing (skill-based, availability)
-- Chat analytics (response time, resolution time, satisfaction)
-
-**User Stories**:
-
-```
-As a support agent, I want to see which page a visitor is on 
-so that I can provide contextual help.
-
-As a visitor, I want to upload screenshots in chat 
-so that I can show my issue to the support agent.
-
-As a support manager, I want to automatically route chats to agents with specific skills 
-so that customers get help from the most qualified person.
-```
-
-#### 3.4 Multi-Channel Support
-
-**Priority**: P2 (Nice to Have)
-
-**Features**:
-
-- Email support (unified inbox)
-- Social media support (Facebook, Twitter)
-- Phone support (call logging)
-- SMS support
-- WhatsApp support
-- Unified ticket view (all channels)
-
-#### 3.5 SLA & Escalation
-
-**Priority**: P1 (Should Have)
-
-**Features**:
-
-- SLA rules by priority/category
-- Response time tracking
-- Resolution time tracking
-- Escalation rules (auto-assign to manager if SLA breached)
-- SLA reports and alerts
-
------
-
-### 4. Analytics & Reporting
-
-#### 4.1 Unified Analytics
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Cross-module reporting (sales + marketing + service)
-- Pre-built dashboards for each module
-- Custom dashboard builder
-- 75+ visualization types (charts, tables, pivot, funnel, etc.)
-- Drill-down capabilities
-- Date range filters (today, this week, last 30 days, custom)
-- Comparative analysis (vs. previous period)
-- Export dashboards to PDF
-
-**Key Metrics**:
-
-**Sales**:
-
-- Total pipeline value
-- Deals by stage
-- Average deal size
-- Win rate
-- Sales cycle length
-- Revenue by product/region
-
-**Marketing**:
-
-- Leads generated
-- Lead sources
-- Campaign ROI
-- Email performance (open rate, click rate)
-- Landing page conversion rate
-
-**Service**:
-
-- Ticket volume
-- Average response time
-- Average resolution time
-- SLA compliance %
-- Customer satisfaction score
-- Agent performance
-
-#### 4.2 AI-Powered Insights (Zia)
-
-**Priority**: P2 (Nice to Have)
-
-**Features**:
-
-- **Predictive Analytics**: Deal win probability, churn prediction
-- **Anomaly Detection**: Unusual spikes/drops in metrics
-- **Best Time to Contact**: ML-based recommendations
-- **Sentiment Analysis**: Email and ticket sentiment
-- **Lead Scoring**: AI-enhanced lead scoring
-- **Product Recommendations**: Upsell/cross-sell suggestions
-- **Natural Language Queries**: Ask questions in plain English
-- **Smart Notifications**: Proactive alerts for important events
-
-**Example Insights**:
-
-- “Deal X has a 75% probability of closing this month”
-- “Ticket volume increased 40% this week - possible service issue”
-- “Best time to contact Lead Y is Tuesday 2-4 PM”
-- “Customer Z expressed frustration in last email - consider priority escalation”
-
-#### 4.3 Custom Reports
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- Report builder with drag-and-drop interface
-- Report types: tabular, summary (grouped), matrix (pivot)
-- Filters and conditions (AND/OR logic)
-- Calculated fields (formulas)
-- Sorting and grouping
-- Chart types: bar, line, pie, donut, area, funnel, scatter, heatmap
-- Scheduled reports (daily, weekly, monthly)
-- Report sharing (users, teams, public link)
-- Report subscriptions (email delivery)
-
------
-
-### 5. Project Management
-
-#### 5.1 Core Project Features
-
-**Priority**: P2 (Nice to Have)
-
-**Features**:
-
-- Project creation and templates
-- Task management (create, assign, update)
-- Milestones
-- Gantt chart view
-- Task dependencies
-- Time tracking
-- Resource allocation
-- Project templates
-- File attachments
-- Project discussions
-- Project dashboard
-
-**Data Model**:
-
-```
-Project {
-  id: UUID
-  name: String
-  description: Text
-  start_date: Date
-  end_date: Date
-  status: Enum (not_started, in_progress, on_hold, completed)
-  owner_id: UUID (FK to User)
-  team_members: Array<UUID>
-  custom_fields: JSON
+  family        Family?   @relation("FamilyParent")
+  studentProfile Student?
 }
 
-Task {
-  id: UUID
-  project_id: UUID (FK)
-  name: String
-  description: Text
-  assigned_to: UUID (FK to User)
-  start_date: Date
-  due_date: Date
-  priority: Enum (low, medium, high)
-  status: Enum (open, in_progress, completed)
-  estimated_hours: Decimal
-  actual_hours: Decimal
-  parent_task_id: UUID (FK, self-referential)
-  dependencies: Array<UUID> (task IDs)
+enum Role {
+  PARENT
+  STUDENT
+}
+
+model Family {
+  id        String    @id @default(cuid())
+  name      String
+  parentId  String    @unique
+  parent    User      @relation("FamilyParent", fields: [parentId], references: [id])
+  students  Student[]
+  createdAt DateTime  @default(now())
+}
+
+model Student {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  familyId        String
+  family          Family   @relation(fields: [familyId], references: [id])
+  gradeLevel      String?
+  birthDate       DateTime?
+  showGradebook   Boolean  @default(true)
+  enrollments     Enrollment[]
+  submissions     Submission[]
+  createdAt       DateTime @default(now())
+}
+
+// ─── COURSES & CURRICULUM ──────────────────────────────────
+
+model Course {
+  id            String    @id @default(cuid())
+  title         String
+  subject       String
+  gradeLevel    String
+  description   String?
+  isCustom      Boolean   @default(false)   // true = parent-created course
+  thumbnailUrl  String?
+  createdAt     DateTime  @default(now())
+
+  lessons       Lesson[]
+  enrollments   Enrollment[]
+}
+
+model Lesson {
+  id            String    @id @default(cuid())
+  courseId       String
+  course        Course    @relation(fields: [courseId], references: [id])
+  sequenceOrder Int
+  title         String
+  description   String?
+  videoUrl      String?
+  durationMin   Int?
+  materials     String[]  // list of required materials for the day
+
+  assignments   Assignment[]
+  resources     Resource[]
+}
+
+model Resource {
+  id        String       @id @default(cuid())
+  lessonId  String
+  lesson    Lesson       @relation(fields: [lessonId], references: [id])
+  title     String
+  type      ResourceType
+  fileUrl   String
+}
+
+enum ResourceType {
+  TEACHER_EDITION_PDF
+  STUDENT_HANDOUT
+  QUIZ_FILE
+  ANSWER_KEY
+  OTHER
+}
+
+// ─── ASSIGNMENTS & GRADING ─────────────────────────────────
+
+model Assignment {
+  id            String         @id @default(cuid())
+  lessonId      String
+  lesson        Lesson         @relation(fields: [lessonId], references: [id])
+  title         String
+  type          AssignmentType
+  maxPoints     Float
+  isAutoGraded  Boolean        @default(false)
+  answerKeyUrl  String?
+
+  submissions   Submission[]
+}
+
+enum AssignmentType {
+  HOMEWORK
+  QUIZ
+  TEST
+  PROJECT
+  READING
+  ACTIVITY
+}
+
+model Submission {
+  id            String           @id @default(cuid())
+  assignmentId  String
+  assignment    Assignment       @relation(fields: [assignmentId], references: [id])
+  studentId     String
+  student       Student          @relation(fields: [studentId], references: [id])
+  status        SubmissionStatus @default(NOT_STARTED)
+  pointsEarned  Float?
+  gradedAt      DateTime?
+  submittedAt   DateTime?
+  skipped       Boolean          @default(false)
+  retakeAllowed Boolean          @default(false)
+  answers       Json?            // for auto-graded quizzes
+
+  @@unique([assignmentId, studentId])
+}
+
+enum SubmissionStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+  SKIPPED
+}
+
+// ─── SCHEDULING ────────────────────────────────────────────
+
+model Enrollment {
+  id              String   @id @default(cuid())
+  studentId       String
+  student         Student  @relation(fields: [studentId], references: [id])
+  courseId         String
+  course          Course   @relation(fields: [courseId], references: [id])
+  startDate       DateTime
+  daysOfWeek      String[] // e.g., ["MO","TU","WE","TH","FR"]
+  lessonsPerDay   Int      @default(1)
+  alternating     Boolean  @default(false)
+
+  scheduledItems  ScheduledItem[]
+
+  @@unique([studentId, courseId])
+}
+
+model ScheduledItem {
+  id            String             @id @default(cuid())
+  enrollmentId  String
+  enrollment    Enrollment         @relation(fields: [enrollmentId], references: [id])
+  lessonId      String
+  date          DateTime
+  status        ScheduledStatus    @default(UPCOMING)
+
+  @@index([enrollmentId, date])
+}
+
+enum ScheduledStatus {
+  UPCOMING
+  COMPLETED
+  SKIPPED
+  RESCHEDULED
+}
+
+// ─── CALENDAR EVENTS ───────────────────────────────────────
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  familyId    String
+  title       String
+  date        DateTime
+  allDay      Boolean  @default(true)
+  eventType   String   // "vacation", "field_trip", "special", "day_off"
+  notes       String?
+}
+
+// ─── GRADING SCALE ─────────────────────────────────────────
+
+model GradingScale {
+  id        String             @id @default(cuid())
+  familyId  String             @unique
+  entries   GradingScaleEntry[]
+}
+
+model GradingScaleEntry {
+  id             String       @id @default(cuid())
+  gradingScaleId String
+  gradingScale   GradingScale @relation(fields: [gradingScaleId], references: [id])
+  letter         String       // "A", "B+", etc.
+  minPercent     Float
+  maxPercent     Float
+  gpaPoints      Float        // 4.0, 3.7, etc.
 }
 ```
 
 -----
 
-### 6. Team Collaboration
+## 7. Feature Specifications
 
-#### 6.1 Internal Chat (Cliq)
+### 7.1 Onboarding Flow
 
-**Priority**: P1 (Should Have)
+**Route:** `/onboarding`
 
-**Features**:
+The first-time experience after account creation. A step-by-step wizard:
 
-- One-on-one messaging
-- Group channels
-- Direct mentions (@user)
-- File sharing
-- Emoji reactions
-- Message search
-- Typing indicators
-- Read receipts
-- Message pinning
-- Threads/replies
+1. **Welcome & Parent Profile** — Name, email (pre-filled), avatar upload, time zone, state (for reporting requirements).
+1. **Add Students** — For each student: first name, last name, grade level, birth date, username, password. Toggle for “show gradebook to student.”
+1. **Assign Courses** — Browse available course catalog or create a custom course. For each course assigned: select student, pick start date, choose days of the week, set lessons per day.
+1. **Confirmation** — Summary of setup. “Start Homeschooling” button.
 
-#### 6.2 Video Conferencing (Meeting)
-
-**Priority**: P2 (Nice to Have)
-
-**Features**:
-
-- Video meetings (up to 100 participants)
-- Screen sharing
-- Meeting recording
-- Meeting scheduling (calendar integration)
-- Waiting room
-- Meeting chat
-- Reactions and hand raise
-- Meeting transcripts
+The schedule auto-populates for the full year based on the configuration. Parent can edit later.
 
 -----
 
-### 7. Unified Platform Features
+### 7.2 Parent Dashboard
 
-#### 7.1 Unified Search
+**Route:** `/dashboard`
 
-**Priority**: P0 (Must Have)
+The command center. A student-selector dropdown at the top toggles whose data is displayed.
 
-**Features**:
+**Sections (customizable order via drag-and-drop):**
 
-- Global search across all modules
-- Search in: leads, contacts, accounts, deals, tickets, emails, files
-- Advanced search filters
-- Search suggestions (autocomplete)
-- Recent searches
-- Saved searches
-
-#### 7.2 Unified Notifications
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- In-app notifications
-- Email notifications
-- Push notifications (mobile)
-- Notification preferences (per user)
-- Notification types:
-  - Task assigned to you
-  - Deal stage changed
-  - Ticket SLA approaching
-  - Email received
-  - Lead assigned to you
-  - Mention in chat/comment
-
-#### 7.3 Unified Admin Panel
-
-**Priority**: P0 (Must Have)
-
-**Features**:
-
-- User management (add, edit, deactivate)
-- Role management (permissions)
-- Organization settings
-- Module configuration
-- Field customization
-- Workflow management
-- Integration settings
-- Billing and subscription
-- Audit logs
+- **Day-at-a-Glance** — Today’s date, number of lessons due, number completed, number remaining.
+- **Course Progress Overview** — Horizontal progress bars per course (e.g., “Math — 42% complete”).
+- **Today’s Lessons** — List of lessons due today with course name, lesson title, and completion checkbox. Completed items show strikethrough.
+- **Materials Needed** — Aggregated list of physical materials required for today’s lessons.
+- **Upcoming Assignments** — Next 5 assignments due after today.
+- **Recently Graded** — Last 5 graded assignments with scores.
 
 -----
 
-## Data Model
+### 7.3 Student Dashboard
 
-### Core Entities
+**Route:** `/student/dashboard`
 
-#### User & Organization
+Simplified, focused view:
 
-```
-Organization {
-  id: UUID (PK)
-  name: String
-  subdomain: String (unique, e.g., "acme" for acme.yourcrm.com)
-  industry: String
-  size: String (1-10, 11-50, 51-200, 201-500, 501+)
-  timezone: String
-  currency: String
-  created_at: Timestamp
-  subscription_plan: String
-  is_active: Boolean
-}
+- **Today’s Checklist** — Ordered list of today’s lessons. Each item shows: course icon/color, lesson title, type (video, reading, assignment), and a “Mark Complete” button. Clicking a video lesson opens the video player.
+- **Course Progress** — Visual progress rings or bars per course.
+- **Upcoming** — Next 3 days of scheduled lessons.
 
-User {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  email: String (unique, indexed)
-  password_hash: String
-  first_name: String
-  last_name: String
-  role_id: UUID (FK to Role)
-  profile_picture_url: String
-  phone: String
-  timezone: String
-  language: String
-  is_active: Boolean
-  last_login: Timestamp
-  created_at: Timestamp
-  updated_at: Timestamp
-}
+-----
 
-Role {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  name: String
-  permissions: JSON (module: {create, read, update, delete})
-  is_default: Boolean
-}
-```
+### 7.4 Calendar
 
-#### CRM Core
+**Route:** `/calendar`
 
-```
-Lead {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  first_name: String
-  last_name: String
-  email: String (indexed)
-  phone: String
-  company: String
-  title: String
-  source: String (website, referral, campaign, etc.)
-  status: String (new, contacted, qualified, unqualified)
-  rating: String (hot, warm, cold)
-  score: Integer (0-100)
-  assigned_to: UUID (FK to User)
-  converted: Boolean
-  converted_at: Timestamp
-  converted_contact_id: UUID (FK to Contact)
-  converted_account_id: UUID (FK to Account)
-  converted_deal_id: UUID (FK to Deal)
-  custom_fields: JSONB
-  created_at: Timestamp
-  updated_at: Timestamp
-  created_by: UUID (FK to User)
-}
+**Views:** Day, Week, Month (toggle).
 
-Contact {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  account_id: UUID (FK, nullable)
-  first_name: String
-  last_name: String
-  email: String (indexed)
-  phone: String
-  mobile: String
-  title: String
-  department: String
-  mailing_address: JSON
-  social_profiles: JSON {linkedin, twitter, facebook}
-  owner_id: UUID (FK to User)
-  custom_fields: JSONB
-  created_at: Timestamp
-  updated_at: Timestamp
-}
+**Displays:**
 
-Account {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  parent_account_id: UUID (FK, nullable, self-referential)
-  name: String (indexed)
-  website: String
-  industry: String
-  employee_count: Integer
-  annual_revenue: Decimal
-  billing_address: JSON
-  shipping_address: JSON
-  owner_id: UUID (FK to User)
-  custom_fields: JSONB
-  created_at: Timestamp
-  updated_at: Timestamp
-}
+- Scheduled lessons (color-coded by course)
+- Custom calendar events (vacations, field trips)
+- Completed vs. upcoming vs. skipped items
 
-Deal {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  pipeline_id: UUID (FK)
-  stage_id: UUID (FK)
-  name: String
-  account_id: UUID (FK)
-  contact_id: UUID (FK)
-  amount: Decimal
-  probability: Integer (0-100)
-  expected_close_date: Date
-  actual_close_date: Date
-  status: Enum (open, won, lost)
-  loss_reason: String
-  owner_id: UUID (FK to User)
-  custom_fields: JSONB
-  created_at: Timestamp
-  updated_at: Timestamp
-}
+**Actions from Calendar:**
 
-Pipeline {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  name: String
-  is_default: Boolean
-  stages: JSON [{id, name, probability, order}]
-}
+- **Quick Schedule:** Click any lesson to mark complete, skip, or reschedule to another date.
+- **Bulk Reschedule:** Select a date range and shift all items forward/backward by N days.
+- **Add Day Off / Vacation:** Select dates, all scheduled items auto-reschedule to the next available day.
+- **Add Special Event:** Title, date, optional notes.
 
-Activity {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  type: Enum (task, event, call, email, note)
-  subject: String
-  description: Text
-  related_to_type: String (lead, contact, account, deal, ticket)
-  related_to_id: UUID
-  assigned_to: UUID (FK to User)
-  due_date: Timestamp
-  completed: Boolean
-  completed_at: Timestamp
-  created_by: UUID (FK to User)
-  created_at: Timestamp
-}
-```
+-----
 
-#### Marketing
+### 7.5 Courses
 
-```
-Campaign {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  name: String
-  type: Enum (email, social, event, other)
-  status: Enum (draft, scheduled, sent, completed)
-  start_date: Date
-  end_date: Date
-  budget: Decimal
-  expected_revenue: Decimal
-  actual_revenue: Decimal
-  description: Text
-  owner_id: UUID (FK to User)
-  created_at: Timestamp
-}
+**Route:** `/courses` → `/courses/[courseId]`
 
-EmailCampaign {
-  id: UUID (PK)
-  campaign_id: UUID (FK)
-  subject: String
-  from_name: String
-  from_email: String
-  reply_to: String
-  html_body: Text
-  text_body: Text
-  scheduled_at: Timestamp
-  sent_at: Timestamp
-  recipient_count: Integer
-  opened_count: Integer
-  clicked_count: Integer
-  bounced_count: Integer
-  unsubscribed_count: Integer
-}
+**Course List View:**
 
-EmailRecipient {
-  id: UUID (PK)
-  email_campaign_id: UUID (FK)
-  contact_id: UUID (FK)
-  email: String
-  sent: Boolean
-  sent_at: Timestamp
-  opened: Boolean
-  opened_at: Timestamp
-  clicked: Boolean
-  clicked_at: Timestamp
-  bounced: Boolean
-  unsubscribed: Boolean
-}
-```
+- Cards showing: course thumbnail, title, subject, grade level, assigned student(s), progress percentage.
+- Filter by student, subject, or status.
 
-#### Service
+**Course Detail View:**
+
+- **Assignment Schedule** — Full list of lessons in sequence order with dates, status, and type icons.
+- **Resources** — Downloadable PDFs: teacher edition, student handouts, quiz files, answer keys.
+- **Course Info** — Description, total lessons, estimated completion date.
+
+-----
+
+### 7.6 Assignments & Grading
+
+**Route:** `/assignments`
+
+**Grading Queue:** List of submitted (but ungraded) assignments across all students/courses.
+
+For each assignment:
+
+- Student name, course name, assignment title, type, max points.
+- Point entry field (numeric input).
+- Link to answer key PDF (opens in side panel or new tab).
+- “Skip Grading” button (excluded from gradebook calculations).
+- “Allow Retake” button (resets submission status).
+- Quick navigation: Previous / Next assignment buttons.
+
+**Auto-Grading (for quizzes/tests):**
+
+- Multiple choice and true/false questions are auto-graded.
+- Essay or map sections flagged for manual review.
+- Score auto-populates; parent can override.
+
+-----
+
+### 7.7 Gradebook
+
+**Route:** `/gradebook`
+
+**Per-Student View (selected via dropdown):**
+
+|Course   |Assignment Count|Graded|Average|Letter Grade|
+|---------|----------------|------|-------|------------|
+|Math 5   |45              |38    |92.4%  |A           |
+|Science 5|30              |25    |88.1%  |B+          |
+
+**Drill-Down (click a course):**
+
+- Table of all assignments with: title, type, max points, points earned, percentage, date graded.
+- Inline editing: click any grade cell to modify.
+- Filter by assignment type (homework, quiz, test, etc.).
+
+**Grading Scale Configuration:**
+
+- Editable table of letter grades, percentage ranges, and GPA points.
+- Default scale pre-populated (A = 93-100, A- = 90-92, B+ = 87-89, etc.).
+
+-----
+
+### 7.8 Reports & Transcripts
+
+**Route:** `/reports`
+
+Three report types, each exportable as PDF:
+
+**7.8.1 Transcript**
+
+- Student name, grade level, school year.
+- Table: Course name, final grade (letter + percentage), credits earned, GPA points.
+- Cumulative GPA at bottom.
+- Parent signature line.
+
+**7.8.2 Progress Report**
+
+- Per-course breakdown: current grade, lessons completed vs. total, estimated completion date.
+- Attendance/time tracking summary (if enabled).
+
+**7.8.3 Course Grade Report**
+
+- Single-course deep dive: every assignment, grade, and date.
+- Summary statistics: average, highest, lowest, missing count.
+
+-----
+
+### 7.9 Custom Courses
+
+**Route:** `/courses/create`
+
+For non-platform curriculum or extracurriculars (Piano, Latin, AWANA, etc.):
+
+- **Course Info:** Title, subject, grade level, description.
+- **Template Selection:** Choose a template based on number of school days (e.g., 180-day, 90-day, custom).
+- **Days of Week & Lessons Per Day.**
+- **After creation:** Generic lessons populate (Lesson 1, Lesson 2…). Parent can edit each lesson title, add notes, and attach files.
+
+-----
+
+### 7.10 Video Lesson Player
+
+**Route:** `/courses/[courseId]/lessons/[lessonId]`
+
+- Embedded video player (HLS adaptive streaming).
+- Progress tracking (resume where left off).
+- Playback speed controls (0.5x, 1x, 1.25x, 1.5x, 2x).
+- “Mark Complete” button below video.
+- Sidebar: lesson materials list, related assignment links.
+- Optional: time tracking (how long student watched).
+
+-----
+
+### 7.11 Online Assessments (Quizzes & Tests)
+
+**Route:** `/assessments/[assignmentId]`
+
+- Timed or untimed (configurable per assignment).
+- Question types: multiple choice, true/false, short answer, essay.
+- Auto-save progress.
+- Submit button with confirmation dialog.
+- Auto-grading for objective questions; manual review queue for subjective.
+- Results screen: score, correct/incorrect per question (if parent enables review).
+
+-----
+
+### 7.12 Settings & Profile Management
+
+**Parent Settings (`/settings`):**
+
+- Family profile (name, address, state).
+- Manage students (add, edit, remove, reorder).
+- Per-student visibility toggles (show/hide gradebook, show/hide grade on dashboard).
+- Grading scale configuration.
+- Time zone and notification preferences.
+- Account security (change password, 2FA).
+
+**Student Settings (`/student/settings`):**
+
+- Profile (avatar, display name).
+- Change password.
+
+-----
+
+## 8. API Routes
+
+Design as RESTful JSON APIs under `/api/v1/`.
 
 ```
-Ticket {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  ticket_number: String (auto-generated, indexed)
-  subject: String
-  description: Text
-  status: Enum (new, in_progress, waiting, resolved, closed)
-  priority: Enum (low, medium, high, urgent)
-  category: String
-  contact_id: UUID (FK)
-  account_id: UUID (FK)
-  assigned_to: UUID (FK to User)
-  team_id: UUID (FK to Team)
-  channel: Enum (email, chat, phone, web_form, social)
-  sla_due_at: Timestamp
-  first_response_at: Timestamp
-  resolved_at: Timestamp
-  closed_at: Timestamp
-  satisfaction_rating: Integer (1-5)
-  tags: Array<String>
-  custom_fields: JSONB
-  created_at: Timestamp
-  updated_at: Timestamp
-}
+Authentication:
+  POST   /api/v1/auth/register
+  POST   /api/v1/auth/login
+  POST   /api/v1/auth/logout
+  POST   /api/v1/auth/refresh
+  GET    /api/v1/auth/me
 
-TicketComment {
-  id: UUID (PK)
-  ticket_id: UUID (FK)
-  user_id: UUID (FK, nullable for customer comments)
-  contact_id: UUID (FK, nullable for customer comments)
-  body: Text
-  is_internal: Boolean
-  created_at: Timestamp
-  attachments: JSON [{filename, url, size}]
-}
+Family:
+  GET    /api/v1/family
+  PUT    /api/v1/family
 
-KnowledgeArticle {
-  id: UUID (PK)
-  organization_id: UUID (FK)
-  title: String
-  content: Text (HTML)
-  category_id: UUID (FK)
-  status: Enum (draft, published, archived)
-  is_public: Boolean
-  view_count: Integer
-  helpful_count: Integer
-  author_id: UUID (FK to User)
-  created_at: Timestamp
-  updated_at: Timestamp
-  published_at: Timestamp
-}
-```
+Students:
+  GET    /api/v1/students
+  POST   /api/v1/students
+  GET    /api/v1/students/:id
+  PUT    /api/v1/students/:id
+  DELETE /api/v1/students/:id
 
-### Relationship Diagram
+Courses:
+  GET    /api/v1/courses                    (catalog + custom)
+  POST   /api/v1/courses                    (create custom course)
+  GET    /api/v1/courses/:id
+  PUT    /api/v1/courses/:id
+  DELETE /api/v1/courses/:id
+  GET    /api/v1/courses/:id/lessons
+  GET    /api/v1/courses/:id/resources
 
-```
-Organization
-    ├── Users (1:N)
-    ├── Leads (1:N)
-    ├── Contacts (1:N)
-    ├── Accounts (1:N)
-    │   └── Contacts (1:N)
-    ├── Deals (1:N)
-    │   ├── Account (N:1)
-    │   ├── Contact (N:1)
-    │   └── DealProducts (1:N)
-    ├── Activities (1:N)
-    ├── Campaigns (1:N)
-    │   └── EmailCampaigns (1:N)
-    ├── Tickets (1:N)
-    │   ├── Contact (N:1)
-    │   ├── Account (N:1)
-    │   └── TicketComments (1:N)
-    ├── Projects (1:N)
-    │   └── Tasks (1:N)
-    └── CustomModules (1:N)
+Enrollments:
+  POST   /api/v1/enrollments                (assign course to student)
+  GET    /api/v1/enrollments?studentId=x
+  DELETE /api/v1/enrollments/:id
+  POST   /api/v1/enrollments/:id/generate-schedule
+
+Schedule:
+  GET    /api/v1/schedule?studentId=x&startDate=y&endDate=z
+  PUT    /api/v1/schedule/:itemId            (mark complete, skip, reschedule)
+  POST   /api/v1/schedule/bulk-reschedule
+  POST   /api/v1/schedule/add-day-off
+
+Assignments & Grading:
+  GET    /api/v1/assignments?studentId=x&status=submitted
+  GET    /api/v1/assignments/:id
+  PUT    /api/v1/submissions/:id             (enter grade, skip, allow retake)
+
+Gradebook:
+  GET    /api/v1/gradebook?studentId=x
+  GET    /api/v1/gradebook/:courseId?studentId=x
+  PUT    /api/v1/grading-scale
+
+Reports:
+  GET    /api/v1/reports/transcript?studentId=x&year=2025
+  GET    /api/v1/reports/progress?studentId=x
+  GET    /api/v1/reports/course-grade?studentId=x&courseId=y
+
+Calendar Events:
+  GET    /api/v1/calendar-events?startDate=x&endDate=y
+  POST   /api/v1/calendar-events
+  PUT    /api/v1/calendar-events/:id
+  DELETE /api/v1/calendar-events/:id
+
+Dashboard:
+  GET    /api/v1/dashboard?studentId=x       (aggregated dashboard data)
 ```
 
 -----
 
-## User Roles & Permissions
+## 9. UI/UX Design Guidelines
 
-### Default Roles
+### Visual Style
 
-#### 1. Administrator
+- **Color palette:** Warm, inviting, family-friendly. Primary blue (#3B82F6), accent green (#10B981) for completed items, amber (#F59E0B) for upcoming, red (#EF4444) for overdue/missing.
+- **Typography:** Inter or system font stack. Clean, highly readable.
+- **Spacing:** Generous whitespace. Cards with rounded corners (8px). Subtle shadows.
+- **Icons:** Lucide React icon set.
 
-**Full access to everything**
+### Layout Principles
 
-- Manage users, roles, organization settings
-- Configure modules, fields, workflows
-- Access all data across organization
-- Manage billing and subscription
-- View audit logs
+- Sidebar navigation (collapsible on mobile → bottom tab bar).
+- Student selector always accessible in the top bar (parent view).
+- Breadcrumb navigation on detail pages.
+- Toast notifications for actions (grade saved, lesson completed, etc.).
+- Skeleton loading states on all data-fetching pages.
 
-#### 2. Sales Manager
+### Mobile Responsiveness
 
-**Full access to sales data**
+- Sidebar collapses to hamburger menu below 768px.
+- Calendar defaults to day/agenda view on mobile.
+- Grade entry uses large touch targets.
+- Video player goes full-width on mobile.
 
-- View/edit all leads, contacts, accounts, deals
-- Assign leads/deals to team
-- View team performance reports
-- Configure sales workflows
-- Export data
+### Accessibility
 
-#### 3. Sales Representative
-
-**Limited to own sales data**
-
-- View/edit assigned leads, contacts, accounts, deals
-- Create leads, contacts, deals
-- Log activities
-- View own performance reports
-- Cannot delete records created by others
-
-#### 4. Marketing Manager
-
-**Full access to marketing**
-
-- Create/edit campaigns
-- Manage email lists
-- View campaign analytics
-- Configure marketing automation
-- Access all leads (read-only)
-
-#### 5. Support Manager
-
-**Full access to support data**
-
-- View/edit all tickets
-- Manage knowledge base
-- Configure SLA rules
-- View team performance
-- Assign tickets to agents
-
-#### 6. Support Agent
-
-**Limited to assigned tickets**
-
-- View/edit assigned tickets
-- Create tickets
-- Search knowledge base
-- Log activities
-- View own performance
-
-### Permission Matrix
-
-|Module               |Admin|Sales Mgr      |Sales Rep   |Marketing Mgr |Support Mgr |Support Agent |
-|---------------------|-----|---------------|------------|--------------|------------|--------------|
-|Users                |CRUD |R              |R           |R             |R           |R             |
-|Organization Settings|CRUD |R              |-           |R             |R           |-             |
-|Leads                |CRUD |CRUD           |CRU (own)   |CRUD          |R           |R             |
-|Contacts             |CRUD |CRUD           |CRU (own)   |CRU           |CRUD        |R             |
-|Accounts             |CRUD |CRUD           |CRU (own)   |CRU           |CRUD        |R             |
-|Deals                |CRUD |CRUD           |CRU (own)   |R             |R           |R             |
-|Campaigns            |CRUD |R              |R           |CRUD          |R           |-             |
-|Tickets              |CRUD |R              |R           |R             |CRUD        |CRU (assigned)|
-|Knowledge Base       |CRUD |R              |R           |R             |CRUD        |CRU           |
-|Reports              |CRUD |CR (own module)|R (own data)|CR (marketing)|CR (support)|R (own data)  |
-|Workflows            |CRUD |CR (sales)     |-           |CR (marketing)|CR (support)|-             |
-
-C = Create, R = Read, U = Update, D = Delete
-
-### Custom Roles
-
-- Support for custom role creation
-- Granular permissions per module and action
-- Field-level permissions (hide sensitive fields)
-- Record-level sharing rules (role hierarchy, manual sharing)
+- WCAG 2.1 AA compliance target.
+- Keyboard navigable. Focus outlines.
+- ARIA labels on interactive elements.
+- Color is never the only indicator (always paired with icon or text).
 
 -----
 
-## Integration Requirements
+## 10. Implementation Phases
 
-### Priority Integrations
+### Phase 1 — Foundation (MVP)
 
-#### Email (P0)
+**Goal:** Core platform that a parent can use to manage one student’s school year.
 
-- **Gmail**: OAuth integration, send/receive, sync contacts
-- **Outlook/Office 365**: OAuth, send/receive, calendar sync
-- **IMAP/SMTP**: Generic email integration
+- [ ] Project scaffolding (Next.js, Prisma, Tailwind, shadcn/ui)
+- [ ] Database schema & migrations
+- [ ] Authentication (register, login, role-based middleware)
+- [ ] Onboarding wizard (parent profile, add student, assign course)
+- [ ] Course catalog with seed data (5 sample courses, 10 lessons each)
+- [ ] Schedule auto-generation engine
+- [ ] Parent dashboard (day-at-a-glance, course progress, today’s lessons)
+- [ ] Student dashboard (today’s checklist, mark complete)
+- [ ] Calendar (month view, mark complete/skip from calendar)
+- [ ] Basic gradebook (view grades, manual grade entry)
 
-#### Calendar (P0)
+### Phase 2 — Grading & Scheduling Power
 
-- **Google Calendar**: Two-way sync
-- **Outlook Calendar**: Two-way sync
-- Sync meetings, activities, events
+**Goal:** Full grading workflow and advanced scheduling.
 
-#### Communication (P1)
+- [ ] Assignment grading queue with answer key links
+- [ ] Inline grade editing in gradebook
+- [ ] Grading scale configuration
+- [ ] Bulk reschedule tool
+- [ ] Add day off / vacation scheduling
+- [ ] Custom course creation
+- [ ] Week and day calendar views
+- [ ] Materials needed aggregation
 
-- **Twilio**: SMS sending, call tracking
-- **Zoom**: Meeting creation, join links
-- **Slack**: Notifications, bot commands
+### Phase 3 — Reporting & Assessments
 
-#### Marketing (P1)
+**Goal:** Generate official documents and enable online tests.
 
-- **Mailchimp**: Sync contacts, campaign tracking
-- **Google Ads**: Ad tracking, lead source
-- **Facebook Ads**: Lead ads integration
+- [ ] Transcript PDF generation
+- [ ] Progress report PDF
+- [ ] Course grade report PDF
+- [ ] Online quiz/test builder (parent creates questions)
+- [ ] Auto-grading engine for objective questions
+- [ ] Assessment-taking interface for students
 
-#### E-commerce (P2)
+### Phase 4 — Media & Polish
 
-- **Shopify**: Order sync, customer sync
-- **WooCommerce**: Order sync
-- **Stripe**: Payment tracking
+**Goal:** Video delivery and production-ready polish.
 
-#### Productivity (P2)
+- [ ] Video lesson player with HLS streaming
+- [ ] Video progress tracking (resume playback)
+- [ ] Playback speed controls
+- [ ] Offline video download support (PWA or native wrapper)
+- [ ] Resource file upload and management
+- [ ] Drag-and-drop dashboard customization
+- [ ] Notification system (overdue assignments, upcoming tests)
+- [ ] Time tracking per lesson
+- [ ] Dark mode
+- [ ] Performance optimization & caching
 
-- **Google Drive**: File storage, attachment
-- **Dropbox**: File storage
-- **Microsoft OneDrive**: File storage
+-----
 
-### API Requirements
+## 11. Seed Data Requirements
 
-#### REST API
+For development and demo purposes, Claude Code should generate seed data:
 
-```
-Base URL: https://api.yourcrm.com/v1
+- **1 Parent account** — email: `parent@edunest.dev`, password: `password123`
+- **2 Students** — “Emma” (Grade 5) and “Liam” (Grade 3)
+- **6 Courses:** Math, Science, English, History, Bible, and Art — each with 20 lessons containing realistic titles.
+- **Assignments:** 2-3 per lesson of varying types.
+- **Sample grades:** ~60% of Emma’s assignments graded; ~40% of Liam’s.
+- **Calendar events:** 2 vacation weeks, 3 field trip days.
+- **Grading scale:** Standard A-F scale.
 
-Authentication: OAuth 2.0 or API Key
+-----
 
-Endpoints:
-- GET /leads
-- POST /leads
-- GET /leads/{id}
-- PUT /leads/{id}
-- DELETE /leads/{id}
+## 12. Environment Variables
 
-(Similar structure for all modules)
+```env
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/edunest
 
-Rate Limiting:
-- Free tier: 100 requests/hour
-- Paid tier: 1000 requests/hour
-- Enterprise: 10,000 requests/hour
+# Auth
+NEXTAUTH_SECRET=your-secret-here
+NEXTAUTH_URL=http://localhost:3000
 
-Response Format: JSON
-Error Codes: Standard HTTP codes
-Pagination: Offset-based or cursor-based
-```
+# File Storage (S3-compatible)
+S3_BUCKET=edunest-files
+S3_REGION=us-east-1
+S3_ACCESS_KEY=your-key
+S3_SECRET_KEY=your-secret
+S3_ENDPOINT=http://localhost:9000  # MinIO for local dev
 
-#### Webhooks
-
-```
-Events:
-- lead.created
-- lead.updated
-- lead.converted
-- contact.created
-- contact.updated
-- deal.created
-- deal.stage_changed
-- deal.won
-- deal.lost
-- ticket.created
-- ticket.status_changed
-- campaign.sent
-
-Webhook URL: Customer provides URL
-Retry: 3 attempts with exponential backoff
-Security: HMAC signature verification
+# Video (optional, Phase 4)
+MUX_TOKEN_ID=your-mux-token
+MUX_TOKEN_SECRET=your-mux-secret
 ```
 
 -----
 
-## UI/UX Requirements
+## 13. Testing Strategy
 
-### Design Principles
-
-1. **Clean & Modern**: Minimal clutter, plenty of white space
-1. **Intuitive**: Common patterns, clear labels, logical flow
-1. **Fast**: < 2 second page loads, instant feedback
-1. **Consistent**: Same patterns across modules
-1. **Responsive**: Works on desktop, tablet, mobile
-1. **Accessible**: WCAG 2.1 AA compliance
-
-### Key Screens
-
-#### 1. Dashboard (Home)
-
-```
-┌─────────────────────────────────────────────────┐
-│ [Logo] Dashboard  ▼   [Search...]  [+] [👤]    │
-├─────────────────────────────────────────────────┤
-│ Sidebar    │                                    │
-│            │  ┌────────────┬────────────┐       │
-│ Dashboard  │  │Pipeline    │Leads This  │       │
-│ Leads      │  │$250K       │Month: 45   │       │
-│ Contacts   │  └────────────┴────────────┘       │
-│ Accounts   │                                    │
-│ Deals      │  ┌─────────────────────────────┐   │
-│ Tickets    │  │ Deals by Stage (Chart)      │   │
-│ Campaigns  │  │                             │   │
-│ Reports    │  └─────────────────────────────┘   │
-│            │                                    │
-│            │  ┌─────────────────────────────┐   │
-│            │  │ Recent Activities           │   │
-│            │  │ - Call with ABC Corp        │   │
-│            │  │ - Email sent to John Doe    │   │
-│            │  └─────────────────────────────┘   │
-└────────────┴────────────────────────────────────┘
-```
-
-#### 2. List View (e.g., Leads)
-
-```
-┌─────────────────────────────────────────────────┐
-│ Leads                    [Filter] [+ New Lead]  │
-├─────────────────────────────────────────────────┤
-│ [All Leads ▼] [Search...]                       │
-├──┬───────────┬──────────┬─────────┬───────────┤
-│☐ │Name       │Company   │Status   │Created    │
-├──┼───────────┼──────────┼─────────┼───────────┤
-│☐ │John Doe   │ABC Corp  │New      │2 days ago │
-│☐ │Jane Smith │XYZ Inc   │Contacted│1 week ago │
-│☐ │Bob Wilson │123 LLC   │Qualified│3 days ago │
-└──┴───────────┴──────────┴─────────┴───────────┘
-Pagination: [< 1 2 3 ... 10 >]
-```
-
-#### 3. Detail View (e.g., Contact)
-
-```
-┌─────────────────────────────────────────────────┐
-│ < Back to Contacts          [Edit] [Delete] [...] │
-├─────────────────────────────────────────────────┤
-│ [Profile Pic] John Doe                          │
-│               VP of Sales @ ABC Corp            │
-│               john@abccorp.com | 555-1234       │
-│                                                 │
-│ ┌─ Details ─────────────────────────────────┐  │
-│ │ Title: VP of Sales                        │  │
-│ │ Department: Sales                         │  │
-│ │ Account: ABC Corp                         │  │
-│ │ Owner: Sarah Johnson                      │  │
-│ └──────────────────────────────────────────┘  │
-│                                                 │
-│ ┌─ Activity Timeline ───────────────────────┐  │
-│ │ [All] [Emails] [Calls] [Meetings]         │  │
-│ │                                            │  │
-│ │ ● Email sent: Product demo follow-up      │  │
-│ │   2 hours ago                              │  │
-│ │                                            │  │
-│ │ ● Meeting: Product Demo                   │  │
-│ │   Yesterday 2:00 PM                        │  │
-│ └──────────────────────────────────────────┘  │
-│                                                 │
-│ ┌─ Related ─────────────────────────────────┐  │
-│ │ Deals (2) | Tickets (0) | Projects (1)    │  │
-│ └──────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-```
-
-#### 4. Pipeline/Kanban View (Deals)
-
-```
-┌─────────────────────────────────────────────────┐
-│ Deals Pipeline              [List] [+ New Deal] │
-├─────────────────────────────────────────────────┤
-│ Prospecting  │ Qualified   │ Proposal  │ Closed│
-│ $50K         │ $100K       │ $75K      │ $25K  │
-├──────────────┼─────────────┼───────────┼───────┤
-│ ┌──────────┐ │ ┌─────────┐ │┌────────┐ │┌─────┐│
-│ │ABC Corp  │ │ │XYZ Inc  │ ││123 LLC │ ││Won  ││
-│ │$20K      │ │ │$50K     │ ││$40K    │ ││$25K ││
-│ │Due: 5/15 │ │ │Due: 5/20│ ││Due:5/10│ │└─────┘│
-│ └──────────┘ │ └─────────┘ │└────────┘ │       │
-│ ┌──────────┐ │             │           │       │
-│ │DEF Ltd   │ │             │           │       │
-│ │$30K      │ │             │           │       │
-│ └──────────┘ │             │           │       │
-└──────────────┴─────────────┴───────────┴───────┘
-```
-
-### Mobile App Requirements
-
-- Native apps for iOS and Android
-- Core features: view/edit leads, contacts, deals, tickets
-- Activity logging (calls, meetings, notes)
-- Push notifications
-- Offline mode (basic read access)
-- Camera integration (scan business cards)
-- Voice-to-text for notes
+- **Unit tests:** Vitest for utility functions, schedule generation logic, GPA calculations.
+- **Integration tests:** API route tests with test database.
+- **E2E tests:** Playwright for critical flows — onboarding, assigning a course, grading an assignment, generating a transcript.
+- **Target:** 80% coverage on business logic; E2E covers all Phase 1 user stories.
 
 -----
 
-## Development Phases
+## 14. Project Structure
 
-### Phase 1: MVP (Months 1-3)
-
-**Goal**: Launch minimum viable product with core CRM
-
-**Modules**:
-
-- User authentication and organization setup
-- Leads module (create, list, detail, convert)
-- Contacts module (CRUD, search, detail view)
-- Accounts module (CRUD, hierarchy)
-- Deals module (CRUD, pipeline view, stages)
-- Activities (tasks, events, calls, notes)
-- Basic workflows (field updates, email alerts)
-- Basic reports (pre-built only)
-- User management (roles, permissions)
-
-**Features**:
-
-- Web app only (responsive design)
-- Email integration (Gmail, Outlook)
-- Import/export (CSV)
-- REST API (basic endpoints)
-- Single dashboard per module
-
-**Success Metrics**:
-
-- 50 beta testers signed up
-- 80% complete core user journey (lead → contact → deal → won)
-- Average session duration > 10 minutes
-
-### Phase 2: Marketing & Service (Months 4-6)
-
-**Goal**: Add marketing automation and helpdesk
-
-**Modules**:
-
-- Marketing campaigns (email campaigns)
-- Email builder (drag-and-drop)
-- Landing pages and forms
-- Ticket management (helpdesk)
-- Live chat widget
-- Knowledge base
-
-**Features**:
-
-- Marketing automation workflows
-- Campaign analytics
-- SLA management
-- Mobile app (iOS, Android) - read-only
-- Webhooks
-- Custom fields and modules (limited)
-
-**Success Metrics**:
-
-- 100 paying customers
-- 30% of users adopt marketing module
-- 40% of users adopt service module
-- Mobile app rating > 4.0
-
-### Phase 3: Advanced Features (Months 7-9)
-
-**Goal**: Add analytics, AI, and integrations
-
-**Modules**:
-
-- Unified analytics dashboard
-- Social media management
-- Survey module
-- Project management
-
-**Features**:
-
-- AI assistant (Zia) - lead scoring, sentiment analysis
-- Custom report builder
-- Advanced workflows (conditions, custom functions)
-- Third-party integrations (Shopify, Stripe, Slack)
-- Mobile app (full CRUD)
-- Advanced customization (50+ custom fields, 10+ custom modules)
-
-**Success Metrics**:
-
-- 500 paying customers
-- 50% MoM growth
-- Churn rate < 5%
-- AI features used by 30% of users
-
-### Phase 4: Enterprise & Scale (Months 10-12)
-
-**Goal**: Enterprise features and optimization
-
-**Features**:
-
-- Multi-user portals (customer, partner, vendor access)
-- Territory management
-- Approval workflows
-- Data encryption
-- Sandbox environment
-- Advanced AI (churn prediction, deal forecasting)
-- White-label options
-- SSO (SAML)
-- Advanced API (GraphQL)
-- Bulk operations (mass update, mass email)
-
-**Success Metrics**:
-
-- 1000 paying customers
-- 10+ enterprise customers (100+ users)
-- 99.9% uptime
-- API usage by 50% of customers
+```
+edunest/
+├── prisma/
+│   ├── schema.prisma
+│   ├── seed.ts
+│   └── migrations/
+├── src/
+│   ├── app/
+│   │   ├── (auth)/
+│   │   │   ├── login/page.tsx
+│   │   │   ├── register/page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── (parent)/
+│   │   │   ├── dashboard/page.tsx
+│   │   │   ├── calendar/page.tsx
+│   │   │   ├── courses/
+│   │   │   │   ├── page.tsx
+│   │   │   │   ├── [courseId]/page.tsx
+│   │   │   │   └── create/page.tsx
+│   │   │   ├── assignments/page.tsx
+│   │   │   ├── gradebook/
+│   │   │   │   ├── page.tsx
+│   │   │   │   └── [courseId]/page.tsx
+│   │   │   ├── reports/page.tsx
+│   │   │   ├── students/page.tsx
+│   │   │   ├── settings/page.tsx
+│   │   │   ├── onboarding/page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── (student)/
+│   │   │   ├── student/
+│   │   │   │   ├── dashboard/page.tsx
+│   │   │   │   ├── courses/
+│   │   │   │   │   ├── page.tsx
+│   │   │   │   │   └── [courseId]/
+│   │   │   │   │       ├── page.tsx
+│   │   │   │   │       └── lessons/[lessonId]/page.tsx
+│   │   │   │   ├── grades/page.tsx
+│   │   │   │   ├── assessments/[assignmentId]/page.tsx
+│   │   │   │   └── settings/page.tsx
+│   │   │   └── layout.tsx
+│   │   ├── api/v1/
+│   │   │   ├── auth/[...nextauth]/route.ts
+│   │   │   ├── family/route.ts
+│   │   │   ├── students/route.ts
+│   │   │   ├── courses/route.ts
+│   │   │   ├── enrollments/route.ts
+│   │   │   ├── schedule/route.ts
+│   │   │   ├── assignments/route.ts
+│   │   │   ├── submissions/route.ts
+│   │   │   ├── gradebook/route.ts
+│   │   │   ├── reports/route.ts
+│   │   │   └── calendar-events/route.ts
+│   │   ├── layout.tsx
+│   │   └── page.tsx                    (landing / marketing page)
+│   ├── components/
+│   │   ├── ui/                         (shadcn primitives)
+│   │   ├── dashboard/
+│   │   ├── calendar/
+│   │   ├── gradebook/
+│   │   ├── courses/
+│   │   ├── video-player/
+│   │   ├── onboarding/
+│   │   └── layout/
+│   │       ├── Sidebar.tsx
+│   │       ├── TopBar.tsx
+│   │       ├── StudentSelector.tsx
+│   │       └── MobileNav.tsx
+│   ├── lib/
+│   │   ├── prisma.ts                   (singleton client)
+│   │   ├── auth.ts                     (NextAuth config)
+│   │   ├── schedule-engine.ts          (auto-generate schedule from enrollment)
+│   │   ├── gpa-calculator.ts
+│   │   ├── pdf-generator.ts
+│   │   └── utils.ts
+│   ├── hooks/
+│   │   ├── useStudent.ts
+│   │   ├── useDashboard.ts
+│   │   └── useGradebook.ts
+│   └── types/
+│       └── index.ts
+├── public/
+│   └── images/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   └── e2e/
+├── .env.example
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+├── next.config.ts
+└── README.md
+```
 
 -----
 
-## Technical Requirements
+## 15. Key Business Logic
 
-### Performance
+### 15.1 Schedule Generation Engine (`schedule-engine.ts`)
 
-- **Page Load Time**: < 2 seconds (median)
-- **API Response Time**: < 200ms (95th percentile)
-- **Database Queries**: < 100ms (95th percentile)
-- **Real-time Updates**: < 1 second latency
-- **Concurrent Users**: Support 10,000+ concurrent users per instance
-- **Data Throughput**: 1000+ records imported per minute
+When a course is assigned to a student via an enrollment:
 
-### Scalability
+1. Read `startDate`, `daysOfWeek`, `lessonsPerDay`, and total lesson count from the course.
+1. Starting from `startDate`, iterate forward through calendar days.
+1. For each day that matches `daysOfWeek`, assign `lessonsPerDay` lessons in sequence.
+1. Skip any dates that overlap with `CalendarEvent` entries of type “vacation” or “day_off.”
+1. Create `ScheduledItem` records for each lesson-date pair.
+1. Return the estimated end date.
 
-- **Horizontal Scaling**: Add application servers as needed
-- **Database Scaling**: Read replicas, partitioning/sharding
-- **File Storage**: Distributed object storage (S3/MinIO)
-- **Caching**: Redis for session, query results
-- **CDN**: Static assets served via CDN
-- **Load Balancing**: Round-robin or least-connections
+### 15.2 GPA Calculation (`gpa-calculator.ts`)
 
-### Security
+- Per-course average = sum(pointsEarned) / sum(maxPoints) × 100. Skipped assignments excluded.
+- Map percentage to letter grade and GPA points via the family’s `GradingScale`.
+- Cumulative GPA = average of per-course GPA points (optionally weighted by credit hours).
 
-- **Authentication**: OAuth 2.0, JWT tokens
-- **Password**: bcrypt hashing (min 10 rounds)
-- **Data Encryption**: TLS 1.3 in transit, AES-256 at rest
-- **SQL Injection**: Use parameterized queries / ORM
-- **XSS Prevention**: Content Security Policy, input sanitization
-- **CSRF Protection**: CSRF tokens on forms
-- **Rate Limiting**: Per user, per IP, per endpoint
-- **Audit Logs**: Log all data changes (who, what, when)
-- **GDPR Compliance**: Data export, deletion, consent management
-- **Backups**: Daily automated backups, 30-day retention
+### 15.3 Bulk Reschedule
 
-### Reliability
+When a parent adds a vacation or day off:
 
-- **Uptime SLA**: 99.9% (< 8.76 hours downtime/year)
-- **Database Backups**: Automated daily backups, point-in-time recovery
-- **Disaster Recovery**: Multi-region failover
-- **Monitoring**: Application performance, error tracking (Sentry)
-- **Alerting**: PagerDuty or similar for critical incidents
-- **Health Checks**: Endpoint for load balancer health checks
-
-### Compliance
-
-- **GDPR**: Data portability, right to erasure, consent management
-- **SOC 2**: If targeting enterprise (optional for MVP)
-- **HIPAA**: If healthcare customers (optional)
-- **WCAG 2.1**: Accessibility compliance (AA level)
+1. Identify all `ScheduledItem` records on affected dates.
+1. Shift each item forward to the next valid school day (respecting `daysOfWeek`).
+1. Cascade: shifted items may bump later items, so process in chronological order.
+1. Update all affected `ScheduledItem.date` values.
 
 -----
 
-## Success Metrics
+## 16. Non-Functional Requirements
 
-### User Metrics
-
-- **Monthly Active Users (MAU)**: Track user engagement
-- **Daily Active Users (DAU)**: DAU/MAU ratio > 0.3
-- **User Retention**:
-  - Week 1: > 60%
-  - Week 4: > 40%
-  - Week 12: > 30%
-- **Feature Adoption**: % of users using each module
-- **Session Duration**: Average > 15 minutes
-
-### Business Metrics
-
-- **Customer Acquisition Cost (CAC)**: < $500
-- **Lifetime Value (LTV)**: > $3000 (LTV/CAC > 3:1)
-- **Monthly Recurring Revenue (MRR)**: Track growth
-- **Churn Rate**: < 5% monthly
-- **Net Revenue Retention**: > 100%
-- **Paid Conversion Rate**: Free → Paid > 10%
-
-### Product Metrics
-
-- **Time to First Value**: User completes core action < 10 minutes
-- **Lead Conversion Rate**: Lead → Deal > 15%
-- **Deal Win Rate**: > 25%
-- **Ticket Resolution Time**: Average < 24 hours
-- **Email Campaign Open Rate**: > 20%
-- **Email Campaign Click Rate**: > 3%
-
-### Technical Metrics
-
-- **Page Load Time**: < 2 seconds (median)
-- **API Error Rate**: < 0.1%
-- **Uptime**: > 99.9%
-- **Bug Report Rate**: < 5 per 1000 users/month
-- **API Usage Growth**: Track developer adoption
+|Requirement             |Target                                          |
+|------------------------|------------------------------------------------|
+|Page load time (initial)|< 3 seconds                                     |
+|API response time       |< 500ms (p95)                                   |
+|Uptime                  |99.5%                                           |
+|Data backup             |Daily automated backups                         |
+|Max concurrent users    |1,000 (initial target)                          |
+|Browser support         |Last 2 versions of Chrome, Firefox, Safari, Edge|
+|Accessibility           |WCAG 2.1 AA                                     |
 
 -----
 
-## Appendices
+## 17. Out of Scope (v1)
 
-### A. User Stories (Detailed)
+These are explicitly **not** included in the initial build but noted for future consideration:
 
-#### Sales Representative
-
-```
-1. As a sales rep, I want to import leads from a CSV file 
-   so that I can quickly add prospects from a conference.
-   
-   Acceptance Criteria:
-   - Support CSV with standard fields (name, email, company, phone)
-   - Map CSV columns to CRM fields
-   - Show preview before import
-   - Handle duplicate detection (skip or update)
-   - Import 1000 leads in < 2 minutes
-   
-2. As a sales rep, I want to see all my activities for today 
-   so that I know what calls and meetings I have.
-   
-   Acceptance Criteria:
-   - Dashboard widget shows today's tasks, events, calls
-   - Sorted by time
-   - Click to mark task as complete
-   - Click to log call
-   - Show overdue items in red
-```
-
-#### Marketing Manager
-
-```
-1. As a marketing manager, I want to create an email campaign 
-   so that I can nurture leads with educational content.
-   
-   Acceptance Criteria:
-   - Drag-and-drop email builder
-   - Save as template
-   - Select recipient list (segment by criteria)
-   - Preview email (desktop, mobile)
-   - Schedule send time or send immediately
-   - Track opens, clicks, unsubscribes
-```
-
-#### Support Agent
-
-```
-1. As a support agent, I want to respond to a ticket via email 
-   so that I can work from my inbox.
-   
-   Acceptance Criteria:
-   - Email sent to ticket address creates ticket comment
-   - Ticket number in subject line routes to correct ticket
-   - Attachments saved to ticket
-   - Email signature stripped
-   - Customer receives email notification
-```
-
-### B. Non-Functional Requirements
-
-#### Usability
-
-- New user can complete first action within 5 minutes
-- Help documentation for all major features
-- Contextual help (tooltips, inline help)
-- Keyboard shortcuts for power users
-- Undo for destructive actions
-
-#### Localization
-
-- Support for multiple languages (Phase 3+)
-- Priority languages: English, Spanish, French, German
-- Date/time formatting per locale
-- Currency formatting
-- Multi-language email templates
-
-#### Browser Support
-
-- Chrome (last 2 versions)
-- Firefox (last 2 versions)
-- Safari (last 2 versions)
-- Edge (last 2 versions)
-- No IE 11 support
-
-### C. Future Enhancements (Post-v1.0)
-
-#### Advanced AI
-
-- Conversation intelligence (call recording analysis)
-- Email response suggestions
-- Smart lead routing
-- Predictive pipeline management
-- Automated data entry
-
-#### Advanced Integrations
-
-- Slack bot for CRM actions
-- WhatsApp Business API
-- Advanced eCommerce (BigCommerce, Magento)
-- ERP integrations (SAP, Oracle)
-- Accounting (QuickBooks, Xero)
-
-#### Industry-Specific Features
-
-- Real estate CRM (property management)
-- Healthcare CRM (HIPAA-compliant)
-- Financial services (compliance features)
+- Multi-family / co-op support
+- Real-time chat or messaging between families
+- Marketplace for third-party curriculum
+- Native mobile apps (iOS/Android) — PWA only for v1
+- AI-powered lesson recommendations
+- Integration with third-party LMS platforms
+- Payment processing / e-commerce
+- Gamification (badges, streaks, points)
 
 -----
 
-## Development Guidelines for Claude Code
+## 18. Getting Started (for Claude Code)
 
-### Code Quality Standards
+```bash
+# 1. Scaffold the project
+npx create-next-app@latest edunest --typescript --tailwind --eslint --app --src-dir
 
-1. **Type Safety**: Use TypeScript for all JavaScript code
-1. **Testing**: Write unit tests for business logic (target 70% coverage)
-1. **Documentation**: JSDoc comments for all public functions
-1. **Linting**: ESLint with Airbnb config (or similar)
-1. **Formatting**: Prettier with consistent config
-1. **Git**: Conventional commits (feat:, fix:, docs:, etc.)
+# 2. Install core dependencies
+cd edunest
+npm install prisma @prisma/client next-auth@beta
+npm install @tanstack/react-query zustand
+npm install date-fns lucide-react
+npm install -D vitest @playwright/test
 
-### Architecture Patterns
+# 3. Initialize shadcn/ui
+npx shadcn@latest init
 
-1. **Backend**:
-- Clean Architecture (Controller → Service → Repository)
-- Domain-driven design for complex business logic
-- Repository pattern for data access
-1. **Frontend**:
-- Component-based architecture (atomic design)
-- Custom hooks for reusable logic
-- Context API or Redux for state management
-1. **API**:
-- RESTful conventions
-- Versioning in URL (/v1/, /v2/)
-- Consistent error responses
+# 4. Initialize Prisma
+npx prisma init
 
-### Database Best Practices
+# 5. Copy the schema from Section 6 into prisma/schema.prisma
 
-1. Use migrations for schema changes
-1. Index foreign keys and frequently queried fields
-1. Use soft deletes (is_deleted flag) for user data
-1. Implement row-level security for multi-tenancy
-1. Normalize data (3NF) but denormalize for performance where needed
-1. Use JSONB for truly dynamic fields only
+# 6. Run migrations
+npx prisma migrate dev --name init
 
-### Security Checklist
+# 7. Seed the database
+npx prisma db seed
 
-- [ ] Input validation on all endpoints
-- [ ] Output encoding to prevent XSS
-- [ ] Parameterized queries (no raw SQL)
-- [ ] Rate limiting on API endpoints
-- [ ] CSRF protection on forms
-- [ ] Content Security Policy headers
-- [ ] Secure session management
-- [ ] Password complexity requirements
-- [ ] Multi-factor authentication (Phase 2+)
+# 8. Start development
+npm run dev
+```
 
-### Performance Optimization
-
-1. **Caching Strategy**:
-- Cache frequently accessed, rarely changed data (user profiles, settings)
-- Cache expensive queries (reports, aggregations)
-- Invalidate cache on data changes
-1. **Database Optimization**:
-- Use connection pooling
-- Implement query pagination
-- Eager load related data to avoid N+1 queries
-- Use database indexes strategically
-1. **Frontend Optimization**:
-- Code splitting by route
-- Lazy load heavy components
-- Optimize images (WebP format, lazy loading)
-- Use React.memo for expensive components
-
-### Deployment Strategy
-
-1. **Environments**: Dev, Staging, Production
-1. **Deployment**: Blue-green or rolling deployments
-1. **Database Migrations**: Run before deploying code
-1. **Feature Flags**: Use for gradual rollout of new features
-1. **Monitoring**: Set up error tracking and performance monitoring on day 1
+**Claude Code should begin with Phase 1 and work through each checkbox sequentially.** Each feature should be committed as a logical unit with a descriptive commit message.
 
 -----
 
-## Conclusion
-
-This PRD provides a comprehensive blueprint for building a Zoho CRM Plus clone. The system should prioritize:
-
-1. **Unified Experience**: Seamless data flow across modules
-1. **Ease of Use**: Intuitive interface, minimal training required
-1. **Scalability**: Architecture that grows with customer base
-1. **Reliability**: High uptime, data integrity, security
-1. **Value**: Competitive pricing with transparent costs
-
-The development should follow an iterative approach, starting with MVP (core CRM) and progressively adding modules based on customer feedback and market demand.
-
-**Next Steps**:
-
-1. Review and approve this PRD
-1. Create detailed technical design documents
-1. Set up development environment
-1. Begin Phase 1 development
-1. Establish CI/CD pipeline
-1. Plan beta testing program
-
------
-
-**Document End**# Homeschool-LMS
+*End of Document*
